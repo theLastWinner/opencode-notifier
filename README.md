@@ -8,11 +8,47 @@ Add this to your `opencode.json`:
 
 ```json
 {
-  "plugin": ["@mohak34/opencode-notifier@latest"]
+  "plugin": ["@theLastWinner/opencode-notifier@latest"]
 }
 ```
 
 Restart OpenCode. Done.
+
+## Local Installation
+
+If you want to install from source or use a custom version:
+
+### Build and install locally
+
+```bash
+# Navigate to the project directory
+cd opencode-notifier
+
+# Build the package
+bun run build
+
+# Create npm tarball
+npm pack
+
+# Install globally
+npm install -g theLastWinner-opencode-notifier-0.1.29.tgz
+```
+
+### Update opencode.json
+
+Add the plugin to your `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "plugin": [
+    "@theLastWinner/opencode-notifier@latest"
+  ]
+}
+```
+
+### Create config file
+
+Create `~/.config/opencode/opencode-notifier.json` with the defaults (see Config file section below).
 
 ## What it does
 
@@ -345,10 +381,10 @@ If Opencode does not update the plugin or there is an issue with the cache versi
 
 ```bash
 # Linux/macOS
-rm -rf ~/.cache/opencode/node_modules/@mohak34/opencode-notifier
+rm -rf ~/.cache/opencode/node_modules/@theLastWinner/opencode-notifier
 
 # Windows
-Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\opencode\node_modules\@mohak34\opencode-notifier"
+Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\opencode\node_modules\@theLastWinner\opencode-notifier"
 ```
 
 Then restart OpenCode.
