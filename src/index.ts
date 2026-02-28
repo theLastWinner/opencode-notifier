@@ -15,6 +15,7 @@ import type { EventType, NotifierConfig } from "./config"
 import { sendNotification } from "./notify"
 import { playSound } from "./sound"
 import { runCommand } from "./command"
+import { sendWechatWebhook } from "./wechat-webhook"
 
 const IDLE_COMPLETE_DELAY_MS = 350
 
@@ -95,6 +96,11 @@ async function handleEvent(
 
   if (!shouldSkipCommand) {
     runCommand(config, eventType, message, sessionTitle, projectName)
+  }
+
+  if (config.wechatWebhook.enabled && config.wechatWebhook.webhookUrl) {
+    const title = getNotificationTitle(config, projectName)
+    promises.push(sendWechatWebhook(config.wechatWebhook, title, message))
   }
 
   await Promise.allSettled(promises)

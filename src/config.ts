@@ -17,6 +17,13 @@ export interface CommandConfig {
   minDuration?: number
 }
 
+export interface WechatWebhookConfig {
+  enabled: boolean
+  webhookUrl: string
+  mentionedList?: string[]
+  mentionedMobileList?: string[]
+}
+
 export interface LinuxConfig {
   grouping: boolean
 }
@@ -36,6 +43,7 @@ export interface NotifierConfig {
   notificationSystem: "osascript" | "node-notifier"
   linux: LinuxConfig
   command: CommandConfig
+  wechatWebhook: WechatWebhookConfig
   events: {
     permission: EventConfig
     complete: EventConfig
@@ -94,6 +102,10 @@ const DEFAULT_CONFIG: NotifierConfig = {
     enabled: false,
     path: "",
     minDuration: 0,
+  },
+  wechatWebhook: {
+    enabled: false,
+    webhookUrl: "",
   },
   events: {
     permission: { ...DEFAULT_EVENT_CONFIG },
@@ -208,6 +220,20 @@ export function loadConfig(): NotifierConfig {
         ? userCommand.minDuration
         : 0
 
+    const userWechatWebhook = userConfig.wechatWebhook ?? {}
+    const wechatWebhookEnabled = typeof userWechatWebhook.enabled === "boolean" ? userWechatWebhook.enabled : false
+    const wechatWebhookUrl = typeof userWechatWebhook.webhookUrl === "string" ? userWechatWebhook.webhookUrl : ""
+
+    let wechatMentionedList: string[] | undefined = undefined
+    if (Array.isArray(userWechatWebhook.mentionedList)) {
+      wechatMentionedList = userWechatWebhook.mentionedList.filter((item: unknown) => typeof item === "string")
+    }
+
+    let wechatMentionedMobileList: string[] | undefined = undefined
+    if (Array.isArray(userWechatWebhook.mentionedMobileList)) {
+      wechatMentionedMobileList = userWechatWebhook.mentionedMobileList.filter((item: unknown) => typeof item === "string")
+    }
+
     return {
       sound: globalSound,
       notification: globalNotification,
@@ -227,6 +253,12 @@ export function loadConfig(): NotifierConfig {
         path: typeof userCommand.path === "string" ? userCommand.path : DEFAULT_CONFIG.command.path,
         args: commandArgs,
         minDuration: commandMinDuration,
+      },
+      wechatWebhook: {
+        enabled: wechatWebhookEnabled,
+        webhookUrl: wechatWebhookUrl,
+        mentionedList: wechatMentionedList,
+        mentionedMobileList: wechatMentionedMobileList,
       },
       events: {
         permission: parseEventConfig(userConfig.events?.permission ?? userConfig.permission, defaultWithGlobal),

@@ -64,6 +64,10 @@ Create `~/.config/opencode/opencode-notifier.json` with the defaults:
     "args": ["--event", "{event}", "--message", "{message}"],
     "minDuration": 0
   },
+  "wechatWebhook": {
+    "enabled": false,
+    "webhookUrl": ""
+  },
   "events": {
     "permission": { "sound": true, "notification": true },
     "complete": { "sound": true, "notification": true },
@@ -246,6 +250,46 @@ Run your own script when something happens. Use `{event}`, `{message}`, and `{se
   }
 }
 ```
+
+### WeChat Work Webhook
+
+Send notifications to WeChat Work (企业微信群机器人) when events occur:
+
+```json
+{
+  "wechatWebhook": {
+    "enabled": true,
+    "webhookUrl": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY"
+  }
+}
+```
+
+- `enabled` - Turn WeChat webhook on/off
+- `webhookUrl` - Your WeChat Work webhook URL
+- `mentionedList` - Optional list of user IDs to @mention (e.g. `["@user1", "@user2"]`)
+- `mentionedMobileList` - Optional list of mobile numbers to @mention (e.g. `["13800138000"]`)
+
+#### Getting your WeChat Work Webhook URL
+
+1. Open your WeChat Work group chat
+2. Click the group settings (...)
+3. Select "Group Robots" → "Add Robot"
+4. Create a new robot and copy the webhook URL
+
+#### Example: Notify specific users
+
+```json
+{
+  "wechatWebhook": {
+    "enabled": true,
+    "webhookUrl": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY",
+    "mentionedList": ["@all"],
+    "mentionedMobileList": ["13800138000"]
+  }
+}
+```
+
+Use `@all` to mention everyone in the group, or specify individual user IDs/mobile numbers.
 
 ## macOS: Pick your notification style
 
