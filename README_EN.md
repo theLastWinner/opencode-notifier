@@ -8,7 +8,7 @@ Add this to your `opencode.json`:
 
 ```json
 {
-  "plugin": ["@theLastWinner/opencode-notifier@latest"]
+  "plugins": ["@thelastwinner/opencode-notifier"]
 }
 ```
 
@@ -31,7 +31,7 @@ bun run build
 npm pack
 
 # Install globally
-npm install -g theLastWinner-opencode-notifier-0.1.29.tgz
+npm install -g thelastwinner-opencode-notifier-0.1.30.tgz
 ```
 
 ### Update opencode.json
@@ -40,8 +40,8 @@ Add the plugin to your `~/.config/opencode/opencode.json`:
 
 ```json
 {
-  "plugin": [
-    "@theLastWinner/opencode-notifier@latest"
+  "plugins": [
+    "@thelastwinner/opencode-notifier"
   ]
 }
 ```
@@ -381,10 +381,10 @@ If Opencode does not update the plugin or there is an issue with the cache versi
 
 ```bash
 # Linux/macOS
-rm -rf ~/.cache/opencode/node_modules/@theLastWinner/opencode-notifier
+rm -rf ~/.cache/opencode/node_modules/@thelastwinner/opencode-notifier
 
 # Windows
-Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\opencode\node_modules\@theLastWinner\opencode-notifier"
+Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\opencode\node_modules\@thelastwinner\opencode-notifier"
 ```
 
 Then restart OpenCode.

@@ -15,7 +15,7 @@ import type { EventType, NotifierConfig } from "./config"
 import { sendNotification } from "./notify"
 import { playSound } from "./sound"
 import { runCommand } from "./command"
-import { sendWechatWebhook } from "./wechat-webhook"
+import { sendWechatWebhook, type Logger } from "./wechat-webhook"
 
 const IDLE_COMPLETE_DELAY_MS = 350
 
@@ -58,10 +58,45 @@ function getNotificationTitle(config: NotifierConfig, projectName: string | null
   return "OpenCode"
 }
 
+function createLogger(client: PluginInput["client"]): Logger {
+return {
+info: async (message: string, extra?: Record<string, unknown>) => {
+try {
+        await client.app.log({
+          body: {
+service: "opencode-notifier",
+level: "info",
+message,
+          extra,
+          },
+})
+} catch {
+// Fallback to console if client.app.log fails
+console.log("[opencode-notifier]", message, extra ?? "")
+}
+},
+error: async (message: string, extra?: Record<string, unknown>) => {
+try {
+        await client.app.log({
+          body: {
+service: "opencode-notifier",
+level: "error",
+message,
+          extra,
+          },
+})
+} catch {
+console.error("[opencode-notifier]", message, extra ?? "")
+}
+},
+}
+}
+
 async function handleEvent(
   config: NotifierConfig,
   eventType: EventType,
   projectName: string | null,
+  logger: Logger,
   elapsedSeconds?: number | null,
   sessionTitle?: string | null
 ): Promise<void> {
@@ -71,6 +106,15 @@ async function handleEvent(
   const message = interpolateMessage(rawMessage, {
     sessionTitle: config.showSessionTitle ? sessionTitle : null,
     projectName,
+  })
+
+  await logger.info("handleEvent started", {
+    eventType,
+    projectName,
+    sessionTitle,
+    elapsedSeconds,
+    wechatWebhookEnabled: config.wechatWebhook?.enabled,
+    wechatWebhookUrlSet: !!config.wechatWebhook?.webhookUrl,
   })
 
   if (isEventNotificationEnabled(config, eventType)) {
@@ -98,12 +142,27 @@ async function handleEvent(
     runCommand(config, eventType, message, sessionTitle, projectName)
   }
 
-  if (config.wechatWebhook.enabled && config.wechatWebhook.webhookUrl) {
+  // WeChat Webhook notification
+  const wechatEnabled = config.wechatWebhook?.enabled === true
+  const wechatUrlSet = !!config.wechatWebhook?.webhookUrl
+  
+  await logger.info("WeChat webhook check", {
+    eventType,
+    wechatEnabled,
+    wechatUrlSet,
+    wechatWebhookUrl: config.wechatWebhook?.webhookUrl ? "[REDACTED]" : "(not set)",
+    shouldTrigger: wechatEnabled && wechatUrlSet,
+  })
+
+  if (wechatEnabled && wechatUrlSet) {
+    await logger.info("Triggering WeChat webhook", { eventType })
     const title = getNotificationTitle(config, projectName)
-    promises.push(sendWechatWebhook(config.wechatWebhook, title, message))
+    promises.push(sendWechatWebhook(config.wechatWebhook, title, message, logger))
   }
 
   await Promise.allSettled(promises)
+  
+  await logger.info("handleEvent completed", { eventType, promisesCount: promises.length })
 }
 
 function getSessionIDFromEvent(event: unknown): string | null {
@@ -225,7 +284,8 @@ async function processSessionIdle(
   event: unknown,
   sessionID: string,
   sequence: number,
-  idleReceivedAtMs: number
+  idleReceivedAtMs: number,
+  logger: Logger
 ): Promise<void> {
   if (!hasCurrentSessionIdleSequence(sessionID, sequence)) {
     return
@@ -246,11 +306,11 @@ async function processSessionIdle(
   }
 
   if (!sessionInfo.isChild) {
-    await handleEventWithElapsedTime(client, config, "complete", projectName, event, idleReceivedAtMs, sessionInfo.title)
+    await handleEventWithElapsedTime(client, config, "complete", projectName, event, logger, idleReceivedAtMs, sessionInfo.title)
     return
   }
 
-  await handleEventWithElapsedTime(client, config, "subagent_complete", projectName, event, idleReceivedAtMs, sessionInfo.title)
+  await handleEventWithElapsedTime(client, config, "subagent_complete", projectName, event, logger, idleReceivedAtMs, sessionInfo.title)
 }
 
 function scheduleSessionIdle(
@@ -258,7 +318,8 @@ function scheduleSessionIdle(
   config: NotifierConfig,
   projectName: string | null,
   event: unknown,
-  sessionID: string
+  sessionID: string,
+  logger: Logger
 ): void {
   clearPendingIdleTimer(sessionID)
   const sequence = bumpSessionIdleSequence(sessionID)
@@ -266,7 +327,7 @@ function scheduleSessionIdle(
 
   const timer = setTimeout(() => {
     pendingIdleTimers.delete(sessionID)
-    void processSessionIdle(client, config, projectName, event, sessionID, sequence, idleReceivedAtMs).catch(() => undefined)
+    void processSessionIdle(client, config, projectName, event, sessionID, sequence, idleReceivedAtMs, logger).catch(() => undefined)
   }, IDLE_COMPLETE_DELAY_MS)
 
   pendingIdleTimers.set(sessionID, timer)
@@ -278,6 +339,7 @@ async function handleEventWithElapsedTime(
   eventType: EventType,
   projectName: string | null,
   event: unknown,
+  logger: Logger,
   elapsedReferenceNowMs?: number,
   preloadedSessionTitle?: string | null
 ): Promise<void> {
@@ -304,30 +366,31 @@ async function handleEventWithElapsedTime(
     sessionTitle = info.title
   }
 
-  await handleEvent(config, eventType, projectName, elapsedSeconds, sessionTitle)
+  await handleEvent(config, eventType, projectName, logger, elapsedSeconds, sessionTitle)
 }
 
 export const NotifierPlugin: Plugin = async ({ client, directory }) => {
   const getConfig = () => loadConfig()
   const projectName = directory ? basename(directory) : null
+  const logger = createLogger(client)
 
   return {
     event: async ({ event }) => {
       const config = getConfig()
       if (event.type === "permission.updated") {
-        await handleEventWithElapsedTime(client, config, "permission", projectName, event)
+        await handleEventWithElapsedTime(client, config, "permission", projectName, event, logger)
       }
 
       if ((event as any).type === "permission.asked") {
-        await handleEventWithElapsedTime(client, config, "permission", projectName, event)
+        await handleEventWithElapsedTime(client, config, "permission", projectName, event, logger)
       }
 
       if (event.type === "session.idle") {
         const sessionID = getSessionIDFromEvent(event)
         if (sessionID) {
-          scheduleSessionIdle(client, config, projectName, event, sessionID)
+          scheduleSessionIdle(client, config, projectName, event, sessionID, logger)
         } else {
-          await handleEventWithElapsedTime(client, config, "complete", projectName, event)
+          await handleEventWithElapsedTime(client, config, "complete", projectName, event, logger)
         }
       }
 
@@ -344,17 +407,17 @@ export const NotifierPlugin: Plugin = async ({ client, directory }) => {
           const info = await getSessionInfo(client, sessionID)
           sessionTitle = info.title
         }
-        await handleEventWithElapsedTime(client, config, eventType, projectName, event, undefined, sessionTitle)
+        await handleEventWithElapsedTime(client, config, eventType, projectName, event, logger, undefined, sessionTitle)
       }
     },
     "permission.ask": async () => {
       const config = getConfig()
-      await handleEvent(config, "permission", projectName, null)
+      await handleEvent(config, "permission", projectName, logger, null)
     },
     "tool.execute.before": async (input) => {
       const config = getConfig()
       if (input.tool === "question") {
-        await handleEvent(config, "question", projectName, null)
+        await handleEvent(config, "question", projectName, logger, null)
       }
     },
   }

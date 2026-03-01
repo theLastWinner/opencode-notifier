@@ -17,8 +17,19 @@ interface WebhookMessage {
   }
 }
 
-async function sendWebhookRequest(url: string, message: WebhookMessage): Promise<boolean> {
+export interface Logger {
+  info: (message: string, extra?: Record<string, unknown>) => Promise<void>
+  error: (message: string, extra?: Record<string, unknown>) => Promise<void>
+}
+
+async function sendWebhookRequest(
+  url: string,
+  message: WebhookMessage,
+  logger?: Logger
+): Promise<boolean> {
   try {
+    await logger?.info("Sending webhook request", { url, message })
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -28,12 +39,22 @@ async function sendWebhookRequest(url: string, message: WebhookMessage): Promise
     })
 
     if (!response.ok) {
+      const errorText = await response.text()
+      await logger?.error("Webhook request failed", { status: response.status, error: errorText })
       return false
     }
 
-    const data = await response.json() as { errcode: number; errmsg: string }
-    return data.errcode === 0
-  } catch {
+    const data = (await response.json()) as { errcode: number; errmsg: string }
+
+    if (data.errcode !== 0) {
+      await logger?.error("WeChat API error", { errcode: data.errcode, errmsg: data.errmsg })
+      return false
+    }
+
+    await logger?.info("Webhook message sent successfully")
+    return true
+  } catch (error) {
+    await logger?.error("Webhook exception", { error: String(error) })
     return false
   }
 }
@@ -41,11 +62,35 @@ async function sendWebhookRequest(url: string, message: WebhookMessage): Promise
 export async function sendWechatWebhook(
   config: WechatWebhookConfig,
   title: string,
-  message: string
+  message: string,
+  logger?: Logger
 ): Promise<void> {
-  if (!config.enabled || !config.webhookUrl) {
+  await logger?.info("WeChat webhook called", {
+    enabled: config.enabled,
+    hasWebhookUrl: !!config.webhookUrl,
+    webhookUrlLength: config.webhookUrl?.length ?? 0,
+    title,
+    messageLength: message?.length ?? 0,
+  })
+
+  if (!config.enabled) {
+    await logger?.info("WeChat webhook skipped: not enabled")
     return
   }
+
+  if (!config.webhookUrl) {
+    await logger?.info("WeChat webhook skipped: webhookUrl not set")
+    return
+  }
+
+  if (!config.webhookUrl.startsWith("http")) {
+    await logger?.error("WeChat webhook skipped: invalid webhookUrl format", {
+      webhookUrl: config.webhookUrl.substring(0, 20) + "...",
+    })
+    return
+  }
+
+  await logger?.info("Preparing WeChat webhook notification", { title, message: message.substring(0, 100) })
 
   const fullMessage = `${title}\n\n${message}`
 
@@ -64,5 +109,5 @@ export async function sendWechatWebhook(
     webhookMessage.text!.mentioned_mobile_list = config.mentionedMobileList
   }
 
-  await sendWebhookRequest(config.webhookUrl, webhookMessage)
+  await sendWebhookRequest(config.webhookUrl, webhookMessage, logger)
 }

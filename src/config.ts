@@ -362,3 +362,21 @@ export function interpolateMessage(message: string, context: MessageContext): st
 
   return result
 }
+
+export function saveConfig(config: NotifierConfig): void {
+  const configPath = getConfigPath()
+  const configDir = dirname(configPath)
+  
+  try {
+    // Ensure config directory exists
+    if (!existsSync(configDir)) {
+      const { mkdirSync } = require("fs")
+      mkdirSync(configDir, { recursive: true })
+    }
+    
+    writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8")
+  } catch (error) {
+    console.error("[opencode-notifier] Failed to save config:", error)
+    throw error
+  }
+}

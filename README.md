@@ -9,7 +9,7 @@ OpenCode 插件，在需要权限、生成完成、发生错误或调用 questio
 
 \`\`\`json
 {
-  "plugin": ["@theLastWinner/opencode-notifier@latest"]
+  "plugins": ["@thelastwinner/opencode-notifier"]
 }
 \`\`\`
 
