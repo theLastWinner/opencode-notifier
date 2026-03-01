@@ -34,7 +34,6 @@
     "alerts"
   ],
   "dependencies": {
-    "@thelastwinner/opencode-notifier": "^0.1.32",
     "node-notifier": "^10.0.1"
   },
   "devDependencies": {
